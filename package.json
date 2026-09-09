@@ -1,0 +1,9 @@
+{
+  "name": "gauss-seidel-solver",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static Gauss-Seidel linear system solver (no build step)",
+  "scripts": {
+    "dev": "npx serve ."
+  }
+}

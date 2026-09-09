@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gauss–Seidel Solver</title>
+<style>
+  :root{
+    --ink: #101d2b;
+    --ink-2: #16273a;
+    --panel: #0d1826;
+    --grid-line: rgba(125, 168, 196, 0.16);
+    --grid-line-strong: rgba(125, 168, 196, 0.32);
+    --paper: #eef3f5;
+    --text-bright: #eaf2f5;
+    --text-dim: #8fa8ba;
+    --amber: #f2a65a;
+    --amber-dim: rgba(242, 166, 90, 0.15);
+    --rust: #e2574c;
+    --rust-dim: rgba(226, 87, 76, 0.15);
+    --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace;
+    --sans: 'Space Grotesk', system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--ink);
+    color: var(--text-bright);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 28px 28px;
+    min-height: 100vh;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 16px;
+    border-bottom: 1px solid var(--grid-line-strong);
+    padding-bottom: 20px;
+    margin-bottom: 32px;
+  }
+
+  h1 {
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 30px;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+  }
+
+  header p {
+    margin: 0;
+    color: var(--text-dim);
+    font-size: 14px;
+    max-width: 46ch;
+    line-height: 1.5;
+  }
+
+  .sys-tag {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    border: 1px solid var(--grid-line-strong);
+    padding: 6px 10px;
+    white-space: nowrap;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 420px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  @media (max-width: 880px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--grid-line-strong);
+    position: relative;
+  }
+
+  .panel::before {
+    content: '';
+    position: absolute;
+    top: -1px; left: -1px;
+    width: 10px; height: 10px;
+    border-top: 1px solid var(--amber);
+    border-left: 1px solid var(--amber);
+  }
+  .panel::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; right: -1px;
+    width: 10px; height: 10px;
+    border-bottom: 1px solid var(--amber);
+    border-right: 1px solid var(--amber);
+  }
+
+  .panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--grid-line-strong);
+  }
+
+  .panel-head h2 {
+    font-size: 13px;
+    text-transform: none;
+    letter-spacing: 0.02em;
+    margin: 0;
+    font-weight: 600;
+    color: var(--text-bright);
+  }
+
+  .panel-head span {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .panel-body { padding: 20px; }
+
+  /* matrix grid */
+  .eq-row {
+    display: grid;
+    grid-template-columns: 20px 56px 20px 56px 20px 56px 24px 56px;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .eq-row .lbl {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-dim);
+    text-align: center;
+  }
+
+  .eq-row .eq {
+    font-family: var(--mono);
+    font-size: 15px;
+    color: var(--text-dim);
+    text-align: center;
+  }
+
+  input[type="text"], input[type="number"] {
+    width: 100%;
+    background: var(--ink-2);
+    border: 1px solid var(--grid-line-strong);
+    color: var(--text-bright);
+    font-family: var(--mono);
+    font-size: 14px;
+    padding: 7px 6px;
+    text-align: center;
+    border-radius: 0;
+  }
+
+  input:focus {
+    outline: none;
+    border-color: var(--amber);
+    box-shadow: 0 0 0 1px var(--amber);
+  }
+
+  .var-row {
+    display: grid;
+    grid-template-columns: 20px 56px 20px 56px 20px 56px 24px 56px;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+  .var-row .lbl { font-family: var(--mono); font-size: 11px; color: var(--text-dim); text-align: center; }
+
+  .settings {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px dashed var(--grid-line-strong);
+  }
+
+  .field label {
+    display: block;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    font-family: var(--mono);
+  }
+
+  .actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 22px;
+  }
+
+  button {
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 13px;
+    padding: 12px 18px;
+    border: 1px solid var(--grid-line-strong);
+    background: transparent;
+    color: var(--text-bright);
+    cursor: pointer;
+    letter-spacing: 0.01em;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  button.primary {
+    background: var(--amber);
+    border-color: var(--amber);
+    color: #1a1206;
+    flex: 1;
+  }
+  button.primary:hover { background: #f7b672; }
+  button.ghost:hover { border-color: var(--text-dim); }
+
+  .status-line {
+    margin-top: 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--rust);
+    min-height: 16px;
+  }
+
+  /* right side */
+  .result-grid {
+    display: grid;
+    grid-template-rows: auto auto;
+    gap: 20px;
+  }
+
+  .solution-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--grid-line-strong);
+  }
+
+  .solution-cell {
+    background: var(--panel);
+    padding: 18px 20px;
+  }
+
+  .solution-cell .k {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  .solution-cell .v {
+    font-family: var(--mono);
+    font-size: 26px;
+    color: var(--amber);
+    font-weight: 500;
+  }
+
+  .solution-cell.pending .v { color: var(--text-dim); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 12.5px;
+  }
+
+  thead th {
+    text-align: right;
+    color: var(--text-dim);
+    font-weight: 500;
+    font-size: 11px;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--grid-line-strong);
+  }
+  thead th:first-child { text-align: left; }
+
+  tbody td {
+    text-align: right;
+    padding: 6px 14px;
+    border-bottom: 1px solid var(--grid-line);
+    color: var(--text-bright);
+  }
+  tbody td:first-child { text-align: left; color: var(--text-dim); }
+
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr.converged td { color: var(--amber); }
+
+  .table-scroll {
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .chart-wrap { padding: 18px 20px 8px; }
+  .chart-caption {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 8px;
+  }
+
+  .empty-note {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: var(--ink-2); }
+  ::-webkit-scrollbar-thumb { background: var(--grid-line-strong); }
+
+  footer {
+    margin-top: 40px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Gauss–Seidel Solver</h1>
+      <p>Iterative solution of a 3×3 linear system Ax = b. Each row updates from the most recent values available in the same pass.</p>
+    </div>
+    <div class="sys-tag">3 EQN · 3 UNK</div>
+  </header>
+
+  <div class="layout">
+
+    <!-- INPUT PANEL -->
+    <div class="panel">
+      <div class="panel-head">
+        <h2>System definition</h2>
+        <span>A · x = b</span>
+      </div>
+      <div class="panel-body">
+
+        <div class="var-row">
+          <span class="lbl"></span><span class="lbl">x</span>
+          <span class="lbl"></span><span class="lbl">y</span>
+          <span class="lbl"></span><span class="lbl">z</span>
+          <span class="lbl"></span><span class="lbl">b</span>
+        </div>
+
+        <div class="eq-row">
+          <span class="lbl"></span><input id="a11" type="text" value="10">
+          <span class="eq">+</span><input id="a12" type="text" value="1">
+          <span class="eq">+</span><input id="a13" type="text" value="1">
+          <span class="eq">=</span><input id="b1" type="text" value="12">
+        </div>
+        <div class="eq-row">
+          <span class="lbl"></span><input id="a21" type="text" value="2">
+          <span class="eq">+</span><input id="a22" type="text" value="10">
+          <span class="eq">+</span><input id="a23" type="text" value="1">
+          <span class="eq">=</span><input id="b2" type="text" value="13">
+        </div>
+        <div class="eq-row">
+          <span class="lbl"></span><input id="a31" type="text" value="2">
+          <span class="eq">+</span><input id="a32" type="text" value="2">
+          <span class="eq">+</span><input id="a33" type="text" value="10">
+          <span class="eq">=</span><input id="b3" type="text" value="14">
+        </div>
+
+        <div class="settings">
+          <div class="field">
+            <label for="tol">Tolerance</label>
+            <input id="tol" type="text" value="0.000001">
+          </div>
+          <div class="field">
+            <label for="maxIter">Max iterations</label>
+            <input id="maxIter" type="text" value="100">
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" id="calcBtn">Calculate</button>
+          <button class="ghost" id="clearBtn">Reset</button>
+        </div>
+
+        <div class="status-line" id="statusLine"></div>
+      </div>
+    </div>
+
+    <!-- RESULTS -->
+    <div class="result-grid">
+
+      <div class="solution-row" id="solutionRow">
+        <div class="solution-cell pending"><div class="k">x</div><div class="v">—</div></div>
+        <div class="solution-cell pending"><div class="k">y</div><div class="v">—</div></div>
+        <div class="solution-cell pending"><div class="k">z</div><div class="v">—</div></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Convergence</h2>
+          <span id="convSpan">error vs. iteration</span>
+        </div>
+        <div class="chart-wrap">
+          <svg id="chart" viewBox="0 0 700 220" width="100%" height="220" preserveAspectRatio="none"></svg>
+          <div class="chart-caption" id="chartCaption">Run a calculation to plot the error at each iteration (log scale).</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Iteration log</h2>
+          <span id="iterSpan">0 rows</span>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr><th>#</th><th>x</th><th>y</th><th>z</th><th>error</th></tr>
+            </thead>
+            <tbody id="tableBody">
+              <tr><td colspan="5"><div class="empty-note">No iterations yet — enter a system and press Calculate.</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <footer>static · single-file · no server required</footer>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+const ids = ['a11','a12','a13','a21','a22','a23','a31','a32','a33','b1','b2','b3','tol','maxIter'];
+
+function readNumber(id) {
+  const v = parseFloat($(id).value);
+  return v;
+}
+
+function setStatus(msg) {
+  $('statusLine').textContent = msg || '';
+}
+
+function resetSolutionCells() {
+  const row = $('solutionRow');
+  row.innerHTML = '';
+  ['x','y','z'].forEach(k => {
+    const cell = document.createElement('div');
+    cell.className = 'solution-cell pending';
+    cell.innerHTML = `<div class="k">${k}</div><div class="v">—</div>`;
+    row.appendChild(cell);
+  });
+}
+
+function setSolutionCells(x, y, z, converged) {
+  const row = $('solutionRow');
+  const vals = [x, y, z];
+  row.innerHTML = '';
+  ['x','y','z'].forEach((k, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'solution-cell' + (converged ? '' : ' pending');
+    cell.innerHTML = `<div class="k">${k}</div><div class="v">${vals[i].toFixed(6)}</div>`;
+    row.appendChild(cell);
+  });
+}
+
+function drawChart(errors) {
+  const svg = $('chart');
+  svg.innerHTML = '';
+  const W = 700, H = 220, padL = 46, padR = 12, padT = 14, padB = 26;
+
+  if (!errors.length) return;
+
+  const logErrors = errors.map(e => Math.log10(Math.max(e, 1e-16)));
+  const minLog = Math.min(...logErrors);
+  const maxLog = Math.max(...logErrors);
+  const span = (maxLog - minLog) || 1;
+
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+
+  const xFor = i => padL + (errors.length === 1 ? 0 : (i / (errors.length - 1)) * plotW);
+  const yFor = logv => padT + (1 - (logv - minLog) / span) * plotH;
+
+  const ns = 'http://www.w3.org/2000/svg';
+
+  // gridlines + y labels (log decades)
+  const topDecade = Math.ceil(maxLog);
+  const botDecade = Math.floor(minLog);
+  for (let d = botDecade; d <= topDecade; d++) {
+    if (d < minLog - 0.001 || d > maxLog + 0.001) continue;
+    const y = yFor(d);
+    const line = document.createElementNS(ns, 'line');
+    line.setAttribute('x1', padL); line.setAttribute('x2', W - padR);
+    line.setAttribute('y1', y); line.setAttribute('y2', y);
+    line.setAttribute('stroke', 'rgba(125,168,196,0.18)');
+    line.setAttribute('stroke-width', '1');
+    svg.appendChild(line);
+
+    const label = document.createElementNS(ns, 'text');
+    label.setAttribute('x', padL - 8);
+    label.setAttribute('y', y + 3);
+    label.setAttribute('text-anchor', 'end');
+    label.setAttribute('font-family', 'JetBrains Mono, monospace');
+    label.setAttribute('font-size', '9.5');
+    label.setAttribute('fill', '#8fa8ba');
+    label.textContent = '1e' + d;
+    svg.appendChild(label);
+  }
+
+  // path
+  let dAttr = '';
+  errors.forEach((e, i) => {
+    const x = xFor(i), y = yFor(Math.log10(Math.max(e, 1e-16)));
+    dAttr += (i === 0 ? 'M' : 'L') + x.toFixed(2) + ',' + y.toFixed(2) + ' ';
+  });
+
+  const path = document.createElementNS(ns, 'path');
+  path.setAttribute('d', dAttr);
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', '#f2a65a');
+  path.setAttribute('stroke-width', '2');
+  svg.appendChild(path);
+
+  // dots
+  errors.forEach((e, i) => {
+    const x = xFor(i), y = yFor(Math.log10(Math.max(e, 1e-16)));
+    const c = document.createElementNS(ns, 'circle');
+    c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 2.5);
+    c.setAttribute('fill', '#0d1826');
+    c.setAttribute('stroke', '#f2a65a');
+    c.setAttribute('stroke-width', '1.5');
+    svg.appendChild(c);
+  });
+
+  // x axis baseline
+  const base = document.createElementNS(ns, 'line');
+  base.setAttribute('x1', padL); base.setAttribute('x2', W - padR);
+  base.setAttribute('y1', H - padB); base.setAttribute('y2', H - padB);
+  base.setAttribute('stroke', 'rgba(125,168,196,0.32)');
+  svg.appendChild(base);
+
+  const x0 = document.createElementNS(ns, 'text');
+  x0.setAttribute('x', padL); x0.setAttribute('y', H - 6);
+  x0.setAttribute('font-family', 'JetBrains Mono, monospace');
+  x0.setAttribute('font-size', '9.5'); x0.setAttribute('fill', '#8fa8ba');
+  x0.textContent = 'iter 1';
+  svg.appendChild(x0);
+
+  const xN = document.createElementNS(ns, 'text');
+  xN.setAttribute('x', W - padR); xN.setAttribute('y', H - 6);
+  xN.setAttribute('text-anchor', 'end');
+  xN.setAttribute('font-family', 'JetBrains Mono, monospace');
+  xN.setAttribute('font-size', '9.5'); xN.setAttribute('fill', '#8fa8ba');
+  xN.textContent = 'iter ' + errors.length;
+  svg.appendChild(xN);
+}
+
+function calculate() {
+  setStatus('');
+
+  const A = [
+    [readNumber('a11'), readNumber('a12'), readNumber('a13')],
+    [readNumber('a21'), readNumber('a22'), readNumber('a23')],
+    [readNumber('a31'), readNumber('a32'), readNumber('a33')]
+  ];
+  const b = [readNumber('b1'), readNumber('b2'), readNumber('b3')];
+  const tolerance = readNumber('tol');
+  const maxIter = parseInt($('maxIter').value, 10);
+
+  const flatValid = [...A.flat(), ...b, tolerance].every(v => Number.isFinite(v));
+  if (!flatValid || !Number.isInteger(maxIter) || maxIter <= 0) {
+    setStatus('Please enter valid numbers in every field.');
+    return;
+  }
+
+  if (A[0][0] === 0 || A[1][1] === 0 || A[2][2] === 0) {
+    setStatus('Diagonal elements cannot be zero.');
+    return;
+  }
+
+  let x = 0, y = 0, z = 0;
+  const rows = [];
+  const errors = [];
+  let convergedAt = null;
+
+  for (let i = 1; i <= maxIter; i++) {
+    const oldX = x, oldY = y, oldZ = z;
+
+    x = (b[0] - A[0][1] * y - A[0][2] * z) / A[0][0];
+    y = (b[1] - A[1][0] * x - A[1][2] * z) / A[1][1];
+    z = (b[2] - A[2][0] * x - A[2][1] * y) / A[2][2];
+
+    const error = Math.max(Math.abs(x - oldX), Math.abs(y - oldY), Math.abs(z - oldZ));
+    rows.push({ i, x, y, z, error });
+    errors.push(error);
+
+    if (error < tolerance) {
+      convergedAt = i;
+      break;
+    }
+  }
+
+  // render table
+  const tbody = $('tableBody');
+  tbody.innerHTML = '';
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    if (r.i === convergedAt) tr.classList.add('converged');
+    tr.innerHTML = `<td>${r.i}</td><td>${r.x.toFixed(6)}</td><td>${r.y.toFixed(6)}</td><td>${r.z.toFixed(6)}</td><td>${r.error.toExponential(3)}</td>`;
+    tbody.appendChild(tr);
+  });
+  $('iterSpan').textContent = rows.length + (rows.length === 1 ? ' row' : ' rows');
+
+  drawChart(errors);
+  $('chartCaption').textContent = convergedAt
+    ? `Converged after ${convergedAt} iteration${convergedAt === 1 ? '' : 's'}, error dropped ${errors.length ? (errors[0] / errors[errors.length-1]).toExponential(1) : ''}×.`
+    : `Reached ${rows.length} iterations without falling below tolerance ${tolerance}.`;
+
+  const last = rows[rows.length - 1];
+  setSolutionCells(last.x, last.y, last.z, !!convergedAt);
+
+  if (!convergedAt) {
+    setStatus(`Maximum iterations (${maxIter}) reached without convergence.`);
+  }
+}
+
+function resetDefaults() {
+  const defaults = {
+    a11:'10', a12:'1', a13:'1', b1:'12',
+    a21:'2', a22:'10', a23:'1', b2:'13',
+    a31:'2', a32:'2', a33:'10', b3:'14',
+    tol:'0.000001', maxIter:'100'
+  };
+  Object.entries(defaults).forEach(([id, v]) => { $(id).value = v; });
+
+  resetSolutionCells();
+  $('tableBody').innerHTML = '<tr><td colspan="5"><div class="empty-note">No iterations yet — enter a system and press Calculate.</div></td></tr>';
+  $('iterSpan').textContent = '0 rows';
+  $('chart').innerHTML = '';
+  $('chartCaption').textContent = 'Run a calculation to plot the error at each iteration (log scale).';
+  setStatus('');
+}
+
+$('calcBtn').addEventListener('click', calculate);
+$('clearBtn').addEventListener('click', resetDefaults);
+
+ids.forEach(id => {
+  $(id).addEventListener('keydown', e => {
+    if (e.key === 'Enter') calculate();
+  });
+});
+</script>
+</body>
+</html>
